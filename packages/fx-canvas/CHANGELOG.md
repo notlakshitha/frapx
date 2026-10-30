@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Restoring a lost WebGL context no longer deletes the lost context's program and buffer, so the INVALID_OPERATION warnings are gone (#78).
+
 ## 0.12.0 - 2026-10-30
 
 ### Added
