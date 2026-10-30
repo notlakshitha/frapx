@@ -167,6 +167,9 @@ class ShaderBackground<TUniforms extends UniformInputMap>
       captureSource: () => this.feedbackState?.targets.read ?? null,
 
       onContextLost: () => {
+        // Everything GL is gone with the context; rebuilt on restore. Disposing
+        // the old program there would delete objects of the lost context.
+        this.shaderProgram = null;
         this.feedbackState = null;
       },
 

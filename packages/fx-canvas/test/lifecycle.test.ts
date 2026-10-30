@@ -96,8 +96,20 @@ class Canvas {
     } as DOMRect;
   }
 
-  addEventListener(): void {}
-  removeEventListener(): void {}
+  readonly listeners = new Map<string, Listener[]>();
+
+  addEventListener(type: string, cb: Listener): void {
+    this.listeners.set(type, [...(this.listeners.get(type) ?? []), cb]);
+  }
+  removeEventListener(type: string, cb: Listener): void {
+    this.listeners.set(
+      type,
+      (this.listeners.get(type) ?? []).filter((l) => l !== cb)
+    );
+  }
+  dispatch(type: string, event: unknown = {}): void {
+    for (const cb of this.listeners.get(type) ?? []) cb(event);
+  }
   remove(): void {}
 }
 
@@ -372,5 +384,34 @@ describe("teardown", () => {
     );
     expect(mediaRemove).toHaveBeenCalledWith("change", expect.any(Function));
     expect(fx.status).toBe("destroyed");
+  });
+});
+
+describe("context loss", () => {
+  it("does not delete the lost context's program or buffer on restore", async () => {
+    const canvas = new Canvas();
+    const fx = create({ canvas: canvas as unknown as HTMLCanvasElement });
+    await fx.ready;
+    const gl = canvas.gl as unknown as Record<
+      "createProgram" | "createBuffer" | "deleteProgram" | "deleteBuffer",
+      ReturnType<typeof vi.fn>
+    >;
+    const last = (fn: ReturnType<typeof vi.fn>) =>
+      fn.mock.results[fn.mock.results.length - 1]?.value;
+    const oldProgram = last(gl.createProgram);
+    const oldBuffer = last(gl.createBuffer);
+    expect(oldProgram).toBeDefined();
+    expect(oldBuffer).toBeDefined();
+    gl.deleteProgram.mockClear();
+    gl.deleteBuffer.mockClear();
+
+    canvas.dispatch("webglcontextlost", { preventDefault: () => {} });
+    canvas.dispatch("webglcontextrestored");
+    await Promise.resolve();
+
+    expect(gl.deleteProgram).not.toHaveBeenCalledWith(oldProgram);
+    expect(gl.deleteBuffer).not.toHaveBeenCalledWith(oldBuffer);
+    expect(gl.createProgram.mock.calls.length).toBe(2);
+    fx.destroy();
   });
 });
